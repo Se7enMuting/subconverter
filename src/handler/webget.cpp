@@ -158,7 +158,7 @@ static int curlGet(const FetchArgument &argument, FetchResult &result)
     {
         if(startsWith(argument.proxy, "cors:"))
         {
-            header_list = curl_slist_append(header_list, "X-Requested-With: null " VERSION);
+         // header_list = curl_slist_append(header_list, "X-Requested-With: subconverter " VERSION);
             new_url = argument.proxy.substr(5) + argument.url;
         }
         else
