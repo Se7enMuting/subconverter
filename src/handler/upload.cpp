@@ -96,6 +96,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     ini.set("username", username);
 
     ini.set_current_section(path);
+    ini.erase_section();
     ini.set("id", id);
     ini.set("type", name);
     ini.set("url", url);
