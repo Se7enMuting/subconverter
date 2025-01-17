@@ -154,15 +154,20 @@ static int curlGet(const FetchArgument &argument, FetchResult &result)
     curl_init();
 
     curl_handle = curl_easy_init();
-    if(!argument.proxy.empty())
-    {
-        if(startsWith(argument.proxy, "cors:"))
-        {
-         // header_list = curl_slist_append(header_list, "X-Requested-With: subconverter " VERSION);
+    if (!argument.proxy.empty()) {
+        if (startsWith(argument.proxy, "cors:")) {
+            // 检查客户端是否提供了 X-Requested-With 请求头
+            if (argument.request_headers && argument.request_headers->count("X-Requested-With")) {
+                // 转发客户端的 X-Requested-With 请求头
+                auto x_requested_with = argument.request_headers->at("X-Requested-With");
+                header_list = curl_slist_append(header_list, ("X-Requested-With: " + x_requested_with).c_str());
+            } else {
+                // 如果客户端没有提供 X-Requested-With 请求头，则不添加
+            }
             new_url = argument.proxy.substr(5) + argument.url;
-        }
-        else
+        } else {
             curl_easy_setopt(curl_handle, CURLOPT_PROXY, argument.proxy.data());
+        }
     }
     curl_progress_data limit;
     limit.size_limit = global.maxAllowedDownloadSize;
