@@ -1225,35 +1225,56 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
-        std::string all_urls, url;
+        std::string all_urls;
+        auto range = contents.equal_range("url");
+        for (auto it = range.first; it != range.second; ++it) {
+            std::string url_value = it->second;
+            // 去除换行符
+            url_value.erase(std::remove(url_value.begin(), url_value.end(), '\n'), url_value.end());
+            url_value.erase(std::remove(url_value.begin(), url_value.end(), '\r'), url_value.end());
+            
+            if (!all_urls.empty()) {
+                all_urls += "|";
+            }
+            all_urls += url_value;
+        }
+
+        // 如果 all_urls 不为空，则将其赋值给 contents 中的第一个 url 字段
+        if (!all_urls.empty()) {
+            contents.erase("url"); // 删除所有旧的 url 字段
+            contents.emplace("url", all_urls); // 添加合并后的 url 字段
+        }
+
         auto iter = contents.find("url");
         if(iter != contents.end())
-            all_urls = iter->second;
-        for(size_t i = 1; i < profiles.size(); i++)
         {
-            name = profiles[i];
-            if(!fileExist(name))
+            std::string all_urls = iter->second;
+            for(size_t i = 1; i < profiles.size(); i++)
             {
-                writeLog(0, "Ignoring non-exist profile '" + name + "'...", LOG_LEVEL_WARNING);
-                continue;
+                name = profiles[i];
+                if(!fileExist(name))
+                {
+                    writeLog(0, "Ignoring non-exist profile '" + name + "'...", LOG_LEVEL_WARNING);
+                    continue;
+                }
+                if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
+                {
+                    writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
+                    continue;
+                }
+                std::string url = ini.get("Profile", "url");
+                if(!url.empty())
+                {
+                    all_urls += "|" + url;
+                    writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
+                }
+                else
+                {
+                    writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
+                }
             }
-            if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
-            {
-                writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
-                continue;
-            }
-            url = ini.get("Profile", "url");
-            if(!url.empty())
-            {
-                all_urls += "|" + url;
-                writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
-            }
-            else
-            {
-                writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
-            }
+            iter->second = all_urls;
         }
-        iter->second = all_urls;
     }
 
     contents.emplace("token", token);
