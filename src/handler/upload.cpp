@@ -92,11 +92,11 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     writeLog(0, "Writing to Gist success!\nGenerator: " + name + "\nPath: " + path + "\nRaw URL: " + url + "\nGist owner: " + username, LOG_LEVEL_INFO);
 
     ini.enter_section("common");
+    ini.erase_section();
     ini.set("token", token);
     ini.set("username", username);
 
     ini.set_current_section(path);
-    ini.erase_section();
     ini.set("id", id);
     ini.set("type", name);
     ini.set("url", url);
