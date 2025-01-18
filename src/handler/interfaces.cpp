@@ -1254,6 +1254,26 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             }
         }
         iter->second = all_urls;
+
+        // Normalize the URLs to handle newlines and multiple `url=` fields
+        std::string combined_urls;
+        std::stringstream ss(all_urls);
+        std::string line;
+        while (std::getline(ss, line, '|'))
+        {
+            size_t pos = 0;
+            while ((pos = line.find("url=", pos)) != std::string::npos)
+            {
+                pos += 4; // Skip past "url="
+                size_t end_pos = line.find_first_of("\r\n", pos);
+                combined_urls += line.substr(pos, end_pos - pos) + "|";
+            }
+        }
+        if (!combined_urls.empty())
+        {
+            combined_urls.pop_back(); // Remove the trailing '|'
+        }
+        iter->second = combined_urls;
     }
 
     contents.emplace("token", token);
