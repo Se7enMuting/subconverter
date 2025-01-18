@@ -1196,6 +1196,54 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     writeLog(0, "Trying to parse profile '" + name + "'.", LOG_LEVEL_INFO);
     string_multimap contents;
     ini.get_items("Profile", contents);
+
+    // 处理 'url' 条目，合并换行符和多个 'url='
+    {
+        std::vector<std::string> all_urls;
+
+        // 收集所有 'url' 条目的迭代器
+        auto url_range = contents.equal_range("url");
+        std::vector<string_multimap::iterator> url_iters;
+        for(auto it = url_range.first; it != url_range.second; ++it)
+        {
+            url_iters.push_back(it);
+        }
+
+        // 处理并收集所有的 URL
+        for(auto it : url_iters)
+        {
+            std::string url_value = it->second;
+            // 标准化换行符
+            std::replace(url_value.begin(), url_value.end(), '\r', '\n');
+            // 按行分割
+            std::vector<std::string> lines = split(url_value, '\n');
+            for(auto &line : lines)
+            {
+                trim(line);
+                if(line.empty())
+                    continue;
+                // 按 '|' 分割
+                std::vector<std::string> urls = split(line, '|');
+                for(auto &url : urls)
+                {
+                    trim(url);
+                    if(!url.empty())
+                        all_urls.push_back(url);
+                }
+            }
+            // 从 contents 中删除当前 'url' 条目
+            contents.erase(it);
+        }
+
+        if(!all_urls.empty())
+        {
+            // 将所有的 URL 合并成一个，用 '|' 分隔
+            std::string combined_url = joinStrings(all_urls, "|");
+            // 将合并后的 'url' 条目放回 contents
+            contents.insert(std::make_pair("url", combined_url));
+        }
+    }
+
     if(contents.empty())
     {
         //std::cerr<<"Load profile failed! Reason: Empty Profile section\n";
@@ -1221,11 +1269,11 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             return "Forbidden";
         }
     }
-    /// check if more than one profile is provided
+    /// 检查是否提供了多个配置文件
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
-        std::string all_urls, url;
+        std::string all_urls;
         auto iter = contents.find("url");
         if(iter != contents.end())
             all_urls = iter->second;
@@ -1242,15 +1290,52 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
-            url = ini.get("Profile", "url");
-            if(!url.empty())
+
+            string_multimap profile_contents;
+            ini.get_items("Profile", profile_contents);
+
+            // 处理额外配置文件的 'url' 条目
             {
-                all_urls += "|" + url;
-                writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
-            }
-            else
-            {
-                writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
+                std::vector<std::string> profile_urls;
+
+                // 收集所有 'url' 条目
+                auto url_range = profile_contents.equal_range("url");
+                for(auto it = url_range.first; it != url_range.second; ++it)
+                {
+                    std::string url_value = it->second;
+                    // 标准化换行符
+                    std::replace(url_value.begin(), url_value.end(), '\r', '\n');
+                    // 按行分割
+                    std::vector<std::string> lines = split(url_value, '\n');
+                    for(auto &line : lines)
+                    {
+                        trim(line);
+                        if(line.empty())
+                            continue;
+                        // 按 '|' 分割
+                        std::vector<std::string> urls = split(line, '|');
+                        for(auto &u : urls)
+                        {
+                            trim(u);
+                            if(!u.empty())
+                                profile_urls.push_back(u);
+                        }
+                    }
+                }
+                // 将本配置文件的 URLs 合并并添加到 all_urls
+                if(!profile_urls.empty())
+                {
+                    std::string combined_profile_url = joinStrings(profile_urls, "|");
+                    if(!all_urls.empty())
+                        all_urls += "|" + combined_profile_url;
+                    else
+                        all_urls = combined_profile_url;
+                    writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
+                }
+                else
+                {
+                    writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
+                }
             }
         }
         iter->second = all_urls;
