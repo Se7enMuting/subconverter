@@ -1223,22 +1223,22 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     }
     
     std::string all_urls;
-    
+
+    auto range = contents.equal_range("url"); // Get the iterator range for all "url" keys
+    for (auto iter = range.first; iter != range.second; ++iter)
+    {
+        if (!iter->second.empty()) // Check if the url value is not empty
+        {
+            if (!all_urls.empty()) 
+            {
+                all_urls += "|"; // Separate multiple urls with |
+            }
+            all_urls += iter->second; // Add the url value
+        }
+    }
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
-        auto range = contents.equal_range("url"); // Get the iterator range for all "url" keys
-        for (auto iter = range.first; iter != range.second; ++iter)
-        {
-            if (!iter->second.empty()) // Check if the url value is not empty
-            {
-                if (!all_urls.empty()) 
-                {
-                    all_urls += "|"; // Separate multiple urls with |
-                }
-                all_urls += iter->second; // Add the url value
-            }
-        }
         for(size_t i = 1; i < profiles.size(); i++)
         {
             name = profiles[i];
@@ -1264,33 +1264,13 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                         all_urls += "|"; // Separate multiple urls with |
                     }
                     all_urls += iter->second; // Add the url value
-                    writeLog(0, "Profile url from '" + name + "' added: " + iter->second, LOG_LEVEL_INFO);
+                    writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
                 }
             }
             if (range.first == range.second) 
-            {
                 writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
-            }
         }
     } 
-    else 
-    {
-        // Handle the case where profiles.size() <= 1, directly merge all urls in contents
-        auto range = contents.equal_range("url"); // Get the iterator range for all "url" keys
-        for (auto iter = range.first; iter != range.second; ++iter) 
-        {
-            if (!iter->second.empty()) // Check if the url value is not empty
-            { 
-                if (!all_urls.empty()) 
-                {
-                    all_urls += "|"; // Separate multiple urls with |
-                }
-                all_urls += iter->second; // Add the url value
-            }
-        }
-        if (range.first == range.second) 
-            writeLog(0, "Profile '" + profiles[0] + "' does not have url key.", LOG_LEVEL_INFO);
-    }
     // Update the url key-value pairs in contents uniformly
     if (!all_urls.empty()) {
         contents.erase("url"); // Remove all url key-value pairs in contents
