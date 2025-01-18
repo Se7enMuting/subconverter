@@ -1227,16 +1227,16 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
-        auto range = contents.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+        auto range = contents.equal_range("url"); // Get the iterator range for all "url" keys
         for (auto iter = range.first; iter != range.second; ++iter)
         {
-            if (!iter->second.empty()) // 检查 url 值是否为空
+            if (!iter->second.empty()) // Check if the url value is not empty
             {
                 if (!all_urls.empty()) 
                 {
-                    all_urls += "|"; // 用 | 分隔多个 url
+                    all_urls += "|"; // Separate multiple urls with |
                 }
-                all_urls += iter->second; // 添加 url 值
+                all_urls += iter->second; // Add the url value
             }
         }
         for(size_t i = 1; i < profiles.size(); i++)
@@ -1253,17 +1253,17 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 continue;
             }
             string_multimap profile_items;
-            ini.get_items("Profile", profile_items); // 获取 [Profile] 节的所有键值对
-            auto range = profile_items.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+            ini.get_items("Profile", profile_items); // Get all key-value pairs in the [Profile] section
+            auto range = profile_items.equal_range("url"); // Get the iterator range for all "url" keys
             for (auto iter = range.first; iter != range.second; ++iter) 
             {
-                if (!iter->second.empty()) // 检查 url 值是否为空
+                if (!iter->second.empty()) // Check if the url value is not empty
                 { 
                     if (!all_urls.empty())
                     {
-                        all_urls += "|"; // 用 | 分隔多个 url
+                        all_urls += "|"; // Separate multiple urls with |
                     }
-                    all_urls += iter->second; // 添加 url 值
+                    all_urls += iter->second; // Add the url value
                     writeLog(0, "Profile url from '" + name + "' added: " + iter->second, LOG_LEVEL_INFO);
                 }
             }
@@ -1275,26 +1275,26 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     } 
     else 
     {
-        // 处理 profiles.size() <= 1 的情况，直接合并 contents 中的所有 url
-        auto range = contents.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+        // Handle the case where profiles.size() <= 1, directly merge all urls in contents
+        auto range = contents.equal_range("url"); // Get the iterator range for all "url" keys
         for (auto iter = range.first; iter != range.second; ++iter) 
         {
-            if (!iter->second.empty()) // 检查 url 值是否为空
+            if (!iter->second.empty()) // Check if the url value is not empty
             { 
                 if (!all_urls.empty()) 
                 {
-                    all_urls += "|"; // 用 | 分隔多个 url
+                    all_urls += "|"; // Separate multiple urls with |
                 }
-                all_urls += iter->second; // 添加 url 值
+                all_urls += iter->second; // Add the url value
             }
         }
         if (range.first == range.second) 
             writeLog(0, "Profile '" + profiles[0] + "' does not have url key.", LOG_LEVEL_INFO);
     }
-    // 统一更新 contents 中的 url 键值对
+    // Update the url key-value pairs in contents uniformly
     if (!all_urls.empty()) {
-        contents.erase("url"); // 清除 contents 中所有的 url 键值对
-        contents.emplace("url", all_urls); // 插入新的 url 键值对
+        contents.erase("url"); // Remove all url key-value pairs in contents
+        contents.emplace("url", all_urls); // Insert the new url key-value pair
     }
 
     contents.emplace("token", token);
