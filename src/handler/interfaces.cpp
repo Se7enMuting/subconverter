@@ -1223,6 +1223,7 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     }
     
     std::string all_urls;
+    
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
@@ -1256,15 +1257,14 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             auto range = profile_items.equal_range("url"); // 获取所有 "url" 键的迭代器范围
             for (auto iter = range.first; iter != range.second; ++iter) 
             {
-                std::string url = iter->second; // 当前 url 值
-                if (!url.empty()) // 检查 url 值是否为空
+                if (!iter->second.empty()) // 检查 url 值是否为空
                 { 
                     if (!all_urls.empty())
                     {
                         all_urls += "|"; // 用 | 分隔多个 url
                     }
-                    all_urls += url; // 添加 url 值
-                    writeLog(0, "Profile url from '" + name + "' added: " + url, LOG_LEVEL_INFO);
+                    all_urls += iter->second; // 添加 url 值
+                    writeLog(0, "Profile url from '" + name + "' added: " + iter->second, LOG_LEVEL_INFO);
                 }
             }
             if (range.first == range.second) 
@@ -1272,9 +1272,6 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
             }
         }
-        contents.erase("url"); // 清除 contents 中所有的 url 键值对
-        if (!all_urls.empty()) // 插入新的 url 键值对
-            contents.emplace("url", all_urls);
     } 
     else 
     {
@@ -1292,16 +1289,12 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             }
         }
         if (range.first == range.second) 
-        {
             writeLog(0, "Profile '" + profiles[0] + "' does not have url key.", LOG_LEVEL_INFO);
-        } 
-        else 
-        {
-            contents.erase("url"); // 清除 contents 中所有的 url 键值对
-            if (!all_urls.empty()) // 插入新的 url 键值对
-                contents.emplace("url", all_urls); 
-        }
-        
+    }
+    // 统一更新 contents 中的 url 键值对
+    if (!all_urls.empty()) {
+        contents.erase("url"); // 清除 contents 中所有的 url 键值对
+        contents.emplace("url", all_urls); // 插入新的 url 键值对
     }
 
     contents.emplace("token", token);
