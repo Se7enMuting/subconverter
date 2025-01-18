@@ -1168,6 +1168,11 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     }
     std::string profile_content;
     name = profiles[0];
+    /*if(vfs::vfs_exist(name))
+    {
+        profile_content = vfs::vfs_get(name);
+    }
+    else */
     if(fileExist(name))
     {
         profile_content = fileGet(name, true);
@@ -1177,19 +1182,23 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
         *status_code = 404;
         return "Profile not found";
     }
+    //std::cerr<<"Trying to load profile '" + name + "'.\n";
     writeLog(0, "Trying to load profile '" + name + "'.", LOG_LEVEL_INFO);
     INIReader ini;
     if(ini.parse(profile_content) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
     {
+        //std::cerr<<"Load profile failed! Reason: "<<ini.get_last_error()<<"\n";
         writeLog(0, "Load profile failed! Reason: " + ini.get_last_error(), LOG_LEVEL_ERROR);
         *status_code = 500;
         return "Broken profile!";
     }
+    //std::cerr<<"Trying to parse profile '" + name + "'.\n";
     writeLog(0, "Trying to parse profile '" + name + "'.", LOG_LEVEL_INFO);
     string_multimap contents;
     ini.get_items("Profile", contents);
     if(contents.empty())
     {
+        //std::cerr<<"Load profile failed! Reason: Empty Profile section\n";
         writeLog(0, "Load profile failed! Reason: Empty Profile section", LOG_LEVEL_ERROR);
         *status_code = 500;
         return "Broken profile!";
@@ -1212,61 +1221,11 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             return "Forbidden";
         }
     }
-
-    // Process 'url' entries to handle multiple 'url=' entries and newlines
-    {
-        std::vector<std::string> all_urls;
-        // Get all 'url' entries
-        auto range = contents.equal_range("url");
-        std::vector<string_multimap::iterator> url_iters;
-        for (auto it = range.first; it != range.second; ++it)
-        {
-            url_iters.push_back(it);
-        }
-
-        // Collect and process all 'url' entries
-        for (auto it : url_iters)
-        {
-            std::string url_values = it->second;
-            // Replace CRLF with LF
-            url_values.erase(std::remove(url_values.begin(), url_values.end(), '\r'), url_values.end());
-            // Split the url_values by newline
-            std::vector<std::string> lines = split(url_values, '\n');
-            for (const std::string& line : lines)
-            {
-                // Trim the line
-                std::string trimmed_line = line;
-                trim(trimmed_line);
-                if (trimmed_line.empty())
-                    continue;
-                // Split by '|'
-                std::vector<std::string> urls = split(trimmed_line, '|');
-                for (const std::string& url : urls)
-                {
-                    // Trim the url
-                    std::string trimmed_url = url;
-                    trim(trimmed_url);
-                    if (!trimmed_url.empty())
-                        all_urls.push_back(trimmed_url);
-                }
-            }
-            // Remove this 'url' entry
-            contents.erase(it);
-        }
-
-        if (!all_urls.empty())
-        {
-            // Combine URLs into a single 'url' entry
-            std::string combined_urls = join(all_urls, "|");
-            contents.emplace("url", combined_urls);
-        }
-    }
-
-    /// Check if more than one profile is provided
+    /// check if more than one profile is provided
     if(profiles.size() > 1)
     {
-        writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_LEVEL_INFO);
-        std::string all_urls;
+        writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
+        std::string all_urls, url;
         auto iter = contents.find("url");
         if(iter != contents.end())
             all_urls = iter->second;
@@ -1275,66 +1234,26 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             name = profiles[i];
             if(!fileExist(name))
             {
-                writeLog(0, "Ignoring non-existent profile '" + name + "'...", LOG_LEVEL_WARNING);
+                writeLog(0, "Ignoring non-exist profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
-            if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE || !ini.section_exist("Profile"))
+            if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
             {
                 writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
-            string_multimap new_contents;
-            ini.get_items("Profile", new_contents);
-
-            // Process 'url' entries in the new profile
+            url = ini.get("Profile", "url");
+            if(!url.empty())
             {
-                std::vector<std::string> new_urls;
-                auto range = new_contents.equal_range("url");
-                for (auto it = range.first; it != range.second; ++it)
-                {
-                    std::string url_values = it->second;
-                    // Replace CRLF with LF
-                    url_values.erase(std::remove(url_values.begin(), url_values.end(), '\r'), url_values.end());
-                    // Split the url_values by newline
-                    std::vector<std::string> lines = split(url_values, '\n');
-                    for (const std::string& line : lines)
-                    {
-                        // Trim the line
-                        std::string trimmed_line = line;
-                        trim(trimmed_line);
-                        if (trimmed_line.empty())
-                            continue;
-                        // Split by '|'
-                        std::vector<std::string> urls = split(trimmed_line, '|');
-                        for (const std::string& url : urls)
-                        {
-                            // Trim the url
-                            std::string trimmed_url = url;
-                            trim(trimmed_url);
-                            if (!trimmed_url.empty())
-                                new_urls.push_back(trimmed_url);
-                        }
-                    }
-                }
-                if (!new_urls.empty())
-                {
-                    if (!all_urls.empty())
-                        all_urls += "|";
-                    all_urls += join(new_urls, "|");
-                    writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
-                }
-                else
-                {
-                    writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
-                }
+                all_urls += "|" + url;
+                writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
+            }
+            else
+            {
+                writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
             }
         }
-        // Update the 'url' entry in contents
-        if (!all_urls.empty())
-        {
-            contents.erase("url");
-            contents.emplace("url", all_urls);
-        }
+        iter->second = all_urls;
     }
 
     contents.emplace("token", token);
