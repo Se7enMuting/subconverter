@@ -1272,7 +1272,12 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
             }
         }
-        iter->second = all_urls;
+        // 清除 contents 中所有的 url 键值对
+        contents.erase("url");
+        // 插入新的 url 键值对
+        if (!all_urls.empty()) {
+            contents.emplace("url", all_urls);
+        }
     } 
     else 
     {
