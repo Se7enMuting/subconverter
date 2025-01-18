@@ -1168,11 +1168,6 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
     }
     std::string profile_content;
     name = profiles[0];
-    /*if(vfs::vfs_exist(name))
-    {
-        profile_content = vfs::vfs_get(name);
-    }
-    else */
     if(fileExist(name))
     {
         profile_content = fileGet(name, true);
@@ -1182,71 +1177,19 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
         *status_code = 404;
         return "Profile not found";
     }
-    //std::cerr<<"Trying to load profile '" + name + "'.\n";
     writeLog(0, "Trying to load profile '" + name + "'.", LOG_LEVEL_INFO);
     INIReader ini;
     if(ini.parse(profile_content) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
     {
-        //std::cerr<<"Load profile failed! Reason: "<<ini.get_last_error()<<"\n";
         writeLog(0, "Load profile failed! Reason: " + ini.get_last_error(), LOG_LEVEL_ERROR);
         *status_code = 500;
         return "Broken profile!";
     }
-    //std::cerr<<"Trying to parse profile '" + name + "'.\n";
     writeLog(0, "Trying to parse profile '" + name + "'.", LOG_LEVEL_INFO);
     string_multimap contents;
     ini.get_items("Profile", contents);
-
-    // 处理 'url' 条目，合并换行符和多个 'url='
-    {
-        std::vector<std::string> all_urls;
-
-        // 收集所有 'url' 条目的迭代器
-        auto url_range = contents.equal_range("url");
-        std::vector<string_multimap::iterator> url_iters;
-        for(auto it = url_range.first; it != url_range.second; ++it)
-        {
-            url_iters.push_back(it);
-        }
-
-        // 处理并收集所有的 URL
-        for(auto it : url_iters)
-        {
-            std::string url_value = it->second;
-            // 标准化换行符
-            std::replace(url_value.begin(), url_value.end(), '\r', '\n');
-            // 按行分割
-            std::vector<std::string> lines = split(url_value, '\n');
-            for(auto &line : lines)
-            {
-                trim(line);
-                if(line.empty())
-                    continue;
-                // 按 '|' 分割
-                std::vector<std::string> urls = split(line, '|');
-                for(auto &url : urls)
-                {
-                    trim(url);
-                    if(!url.empty())
-                        all_urls.push_back(url);
-                }
-            }
-            // 从 contents 中删除当前 'url' 条目
-            contents.erase(it);
-        }
-
-        if(!all_urls.empty())
-        {
-            // 将所有的 URL 合并成一个，用 '|' 分隔
-            std::string combined_url = joinStrings(all_urls, "|");
-            // 将合并后的 'url' 条目放回 contents
-            contents.insert(std::make_pair("url", combined_url));
-        }
-    }
-
     if(contents.empty())
     {
-        //std::cerr<<"Load profile failed! Reason: Empty Profile section\n";
         writeLog(0, "Load profile failed! Reason: Empty Profile section", LOG_LEVEL_ERROR);
         *status_code = 500;
         return "Broken profile!";
@@ -1269,10 +1212,60 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             return "Forbidden";
         }
     }
-    /// 检查是否提供了多个配置文件
+
+    // Process 'url' entries to handle multiple 'url=' entries and newlines
+    {
+        std::vector<std::string> all_urls;
+        // Get all 'url' entries
+        auto range = contents.equal_range("url");
+        std::vector<string_multimap::iterator> url_iters;
+        for (auto it = range.first; it != range.second; ++it)
+        {
+            url_iters.push_back(it);
+        }
+
+        // Collect and process all 'url' entries
+        for (auto it : url_iters)
+        {
+            std::string url_values = it->second;
+            // Replace CRLF with LF
+            url_values.erase(std::remove(url_values.begin(), url_values.end(), '\r'), url_values.end());
+            // Split the url_values by newline
+            std::vector<std::string> lines = split(url_values, '\n');
+            for (const std::string& line : lines)
+            {
+                // Trim the line
+                std::string trimmed_line = line;
+                trim(trimmed_line);
+                if (trimmed_line.empty())
+                    continue;
+                // Split by '|'
+                std::vector<std::string> urls = split(trimmed_line, '|');
+                for (const std::string& url : urls)
+                {
+                    // Trim the url
+                    std::string trimmed_url = url;
+                    trim(trimmed_url);
+                    if (!trimmed_url.empty())
+                        all_urls.push_back(trimmed_url);
+                }
+            }
+            // Remove this 'url' entry
+            contents.erase(it);
+        }
+
+        if (!all_urls.empty())
+        {
+            // Combine URLs into a single 'url' entry
+            std::string combined_urls = join(all_urls, "|");
+            contents.emplace("url", combined_urls);
+        }
+    }
+
+    /// Check if more than one profile is provided
     if(profiles.size() > 1)
     {
-        writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
+        writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_LEVEL_INFO);
         std::string all_urls;
         auto iter = contents.find("url");
         if(iter != contents.end())
@@ -1282,54 +1275,52 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             name = profiles[i];
             if(!fileExist(name))
             {
-                writeLog(0, "Ignoring non-exist profile '" + name + "'...", LOG_LEVEL_WARNING);
+                writeLog(0, "Ignoring non-existent profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
-            if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE && !ini.section_exist("Profile"))
+            if(ini.parse_file(name) != INIREADER_EXCEPTION_NONE || !ini.section_exist("Profile"))
             {
                 writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
+            string_multimap new_contents;
+            ini.get_items("Profile", new_contents);
 
-            string_multimap profile_contents;
-            ini.get_items("Profile", profile_contents);
-
-            // 处理额外配置文件的 'url' 条目
+            // Process 'url' entries in the new profile
             {
-                std::vector<std::string> profile_urls;
-
-                // 收集所有 'url' 条目
-                auto url_range = profile_contents.equal_range("url");
-                for(auto it = url_range.first; it != url_range.second; ++it)
+                std::vector<std::string> new_urls;
+                auto range = new_contents.equal_range("url");
+                for (auto it = range.first; it != range.second; ++it)
                 {
-                    std::string url_value = it->second;
-                    // 标准化换行符
-                    std::replace(url_value.begin(), url_value.end(), '\r', '\n');
-                    // 按行分割
-                    std::vector<std::string> lines = split(url_value, '\n');
-                    for(auto &line : lines)
+                    std::string url_values = it->second;
+                    // Replace CRLF with LF
+                    url_values.erase(std::remove(url_values.begin(), url_values.end(), '\r'), url_values.end());
+                    // Split the url_values by newline
+                    std::vector<std::string> lines = split(url_values, '\n');
+                    for (const std::string& line : lines)
                     {
-                        trim(line);
-                        if(line.empty())
+                        // Trim the line
+                        std::string trimmed_line = line;
+                        trim(trimmed_line);
+                        if (trimmed_line.empty())
                             continue;
-                        // 按 '|' 分割
-                        std::vector<std::string> urls = split(line, '|');
-                        for(auto &u : urls)
+                        // Split by '|'
+                        std::vector<std::string> urls = split(trimmed_line, '|');
+                        for (const std::string& url : urls)
                         {
-                            trim(u);
-                            if(!u.empty())
-                                profile_urls.push_back(u);
+                            // Trim the url
+                            std::string trimmed_url = url;
+                            trim(trimmed_url);
+                            if (!trimmed_url.empty())
+                                new_urls.push_back(trimmed_url);
                         }
                     }
                 }
-                // 将本配置文件的 URLs 合并并添加到 all_urls
-                if(!profile_urls.empty())
+                if (!new_urls.empty())
                 {
-                    std::string combined_profile_url = joinStrings(profile_urls, "|");
-                    if(!all_urls.empty())
-                        all_urls += "|" + combined_profile_url;
-                    else
-                        all_urls = combined_profile_url;
+                    if (!all_urls.empty())
+                        all_urls += "|";
+                    all_urls += join(new_urls, "|");
                     writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
                 }
                 else
@@ -1338,7 +1329,12 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 }
             }
         }
-        iter->second = all_urls;
+        // Update the 'url' entry in contents
+        if (!all_urls.empty())
+        {
+            contents.erase("url");
+            contents.emplace("url", all_urls);
+        }
     }
 
     contents.emplace("token", token);
