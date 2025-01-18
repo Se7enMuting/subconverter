@@ -1221,14 +1221,23 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
             return "Forbidden";
         }
     }
-    /// check if more than one profile is provided
+    
     if(profiles.size() > 1)
     {
         writeLog(0, "Multiple profiles are provided. Trying to combine profiles...", LOG_TYPE_INFO);
-        std::string all_urls, url;
-        auto iter = contents.find("url");
-        if(iter != contents.end())
-            all_urls = iter->second;
+        std::string all_urls;
+        auto range = contents.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+        for (auto iter = range.first; iter != range.second; ++iter)
+        {
+            if (!iter->second.empty()) // 检查 url 值是否为空
+            {
+                if (!all_urls.empty()) 
+                {
+                    all_urls += "|"; // 用 | 分隔多个 url
+                }
+                all_urls += iter->second; // 添加 url 值
+            }
+        }
         for(size_t i = 1; i < profiles.size(); i++)
         {
             name = profiles[i];
@@ -1242,18 +1251,56 @@ std::string getProfile(RESPONSE_CALLBACK_ARGS)
                 writeLog(0, "Ignoring broken profile '" + name + "'...", LOG_LEVEL_WARNING);
                 continue;
             }
-            url = ini.get("Profile", "url");
-            if(!url.empty())
+            string_multimap profile_items;
+            ini.get_items("Profile", profile_items); // 获取 [Profile] 节的所有键值对
+            auto range = profile_items.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+            for (auto iter = range.first; iter != range.second; ++iter) 
             {
-                all_urls += "|" + url;
-                writeLog(0, "Profile url from '" + name + "' added.", LOG_LEVEL_INFO);
+                std::string url = iter->second; // 当前 url 值
+                if (!url.empty()) // 检查 url 值是否为空
+                { 
+                    if (!all_urls.empty())
+                    {
+                        all_urls += "|"; // 用 | 分隔多个 url
+                    }
+                    all_urls += url; // 添加 url 值
+                    writeLog(0, "Profile url from '" + name + "' added: " + url, LOG_LEVEL_INFO);
+                }
             }
-            else
+            if (range.first == range.second) 
             {
                 writeLog(0, "Profile '" + name + "' does not have url key. Skipping...", LOG_LEVEL_INFO);
             }
         }
         iter->second = all_urls;
+    } 
+    else 
+    {
+        // 处理 profiles.size() <= 1 的情况，直接合并 contents 中的所有 url
+        std::string combined_urls;
+        auto range = contents.equal_range("url"); // 获取所有 "url" 键的迭代器范围
+        for (auto iter = range.first; iter != range.second; ++iter) 
+        {
+            if (!iter->second.empty()) // 检查 url 值是否为空
+            { 
+                if (!combined_urls.empty()) 
+                {
+                    combined_urls += "|"; // 用 | 分隔多个 url
+                }
+                combined_urls += iter->second; // 添加 url 值
+            }
+        }
+        if (range.first == range.second) 
+        {
+                writeLog(0, "Profile '" + profiles[0] + "' does not have url key.", LOG_LEVEL_INFO);
+        } 
+        else 
+        {
+            contents.erase("url"); // 清除 contents 中所有的 url 键值对
+            if (!combined_urls.empty())  // 插入新的 url 键值对
+                contents.emplace("url", combined_urls); 
+        }
+        
     }
 
     contents.emplace("token", token);
