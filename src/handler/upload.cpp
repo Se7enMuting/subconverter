@@ -36,6 +36,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
 
     if(!fileExist("gistconf.ini"))
     {
+        //std::cerr<<"gistconf.ini not found. Skipping...\n";
         writeLog(0, "gistconf.ini not found. Skipping...", LOG_LEVEL_ERROR);
         return -1;
     }
@@ -43,6 +44,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     ini.parse_file("gistconf.ini");
     if(ini.enter_section("common") != 0)
     {
+        //std::cerr<<"gistconf.ini has incorrect format. Skipping...\n";
         writeLog(0, "gistconf.ini has incorrect format. Skipping...", LOG_LEVEL_ERROR);
         return -1;
     }
@@ -50,36 +52,51 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     token = ini.get("token");
     if(!token.size())
     {
+        //std::cerr<<"No token is provided. Skipping...\n";
         writeLog(0, "No token is provided. Skipping...", LOG_LEVEL_ERROR);
         return -1;
     }
 
     username = ini.get("username");
-    if (ini.enter_section(path) != 0) {
+
+    if (ini.enter_section(path) != 0) 
+    {
         id = "";  // If the section doesn't exist, id is empty
-    } else {
+    } else 
+    {
         id = ini.get("id");
     }
 
+    if (!path.size()) 
+    {
+        path = name; // 使用 name 作为默认值
+    }
+   
     if(!id.size())
     {
-        writeLog(0, "No Gist id is provided. Creating new Gist...", LOG_LEVEL_INFO);
+        //std::cerr<<"No gist id is provided. Creating new gist...\n";
+        writeLog(0, "No Gist id is provided. Creating new Gist...", LOG_LEVEL_ERROR);
         retVal = webPost("https://api.github.com/gists", buildGistData(path, content), getSystemProxy(), {{"Authorization", "token " + token}}, &retData);
         if(retVal != 201)
         {
+            //std::cerr<<"Create new Gist failed! Return data:\n"<<retData<<"\n";
             writeLog(0, "Create new Gist failed!\nReturn code: " + std::to_string(retVal) + "\nReturn data:\n" + retData, LOG_LEVEL_ERROR);
             return -1;
         }
     }
     else
     {
-        url = "https://gist.githubusercontent.com/" + username + "/" + id + "/raw/" + path;
+        //std::cerr<<"Gist id provided. Modifying Gist...\n";
         writeLog(0, "Gist id provided. Modifying Gist...", LOG_LEVEL_INFO);
-        if(writeManageURL)
+        if (writeManageURL && !username.empty())
+        {
+            url = "https://gist.githubusercontent.com/" + username + "/" + id + "/raw/" + path;
             content = "#!MANAGED-CONFIG " + url + "\n" + content;
+        }
         retVal = webPatch("https://api.github.com/gists/" + id, buildGistData(path, content), getSystemProxy(), {{"Authorization", "token " + token}}, &retData);
         if(retVal != 200)
         {
+            //std::cerr<<"Modify gist failed! Return data:\n"<<retData<<"\n";
             writeLog(0, "Modify Gist failed!\nReturn code: " + std::to_string(retVal) + "\nReturn data:\n" + retData, LOG_LEVEL_ERROR);
             return -1;
         }
@@ -89,6 +106,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     if(json.HasMember("owner"))
         GetMember(json["owner"], "login", username);
     url = "https://gist.githubusercontent.com/" + username + "/" + id + "/raw/" + path;
+    //std::cerr<<"Writing to Gist success!\nGenerator: "<<name<<"\nPath: "<<path<<"\nRaw URL: "<<url<<"\nGist owner: "<<username<<"\n";
     writeLog(0, "Writing to Gist success!\nGenerator: " + name + "\nPath: " + path + "\nRaw URL: " + url + "\nGist owner: " + username, LOG_LEVEL_INFO);
 
     ini.enter_section("common");
