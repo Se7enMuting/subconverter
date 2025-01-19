@@ -98,7 +98,8 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
             if (retVal == 404) 
             {
                 writeLog(0, "Gist not found. Removing local config and creating new Gist...", LOG_LEVEL_WARNING);
-                // ini.remove_section(path); // Clear the corresponding path block
+                ini.remove_section(path); // Clear the corresponding path block
+                retData.clear(); // 清空 retData
                 retVal = webPost("https://api.github.com/gists", buildGistData(path, content), getSystemProxy(), {{"Authorization", "token " + token}}, &retData);
                 if (retVal != 201) 
                 {
