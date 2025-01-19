@@ -69,7 +69,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
 
     if (!path.size()) 
     {
-        path = name; // 使用 name 作为默认值
+        path = name; // Use name as the default value
     }
    
     if(!id.size())
@@ -96,9 +96,23 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
         retVal = webPatch("https://api.github.com/gists/" + id, buildGistData(path, content), getSystemProxy(), {{"Authorization", "token " + token}}, &retData);
         if(retVal != 200)
         {
+            if (retVal == 404) 
+            {
+                writeLog(0, "Gist not found. Removing local config and creating new Gist...", LOG_LEVEL_WARN);
+                ini.remove_section(path); // Clear the corresponding path block
+                retVal = webPost("https://api.github.com/gists", buildGistData(path, content), getSystemProxy(), {{"Authorization", "token " + token}}, &retData);
+                if (retVal != 201) 
+                {
+                    writeLog(0, "Create new Gist failed!\nReturn code: " + std::to_string(retVal) + "\nReturn data:\n" + retData, LOG_LEVEL_ERROR);
+                    return -1;
+                }
+            } 
+            else 
+            {            
             //std::cerr<<"Modify gist failed! Return data:\n"<<retData<<"\n";
             writeLog(0, "Modify Gist failed!\nReturn code: " + std::to_string(retVal) + "\nReturn data:\n" + retData, LOG_LEVEL_ERROR);
             return -1;
+            }
         }
     }
     json.Parse(retData.data());
@@ -109,9 +123,7 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
     //std::cerr<<"Writing to Gist success!\nGenerator: "<<name<<"\nPath: "<<path<<"\nRaw URL: "<<url<<"\nGist owner: "<<username<<"\n";
     writeLog(0, "Writing to Gist success!\nGenerator: " + name + "\nPath: " + path + "\nRaw URL: " + url + "\nGist owner: " + username, LOG_LEVEL_INFO);
 
-    ini.enter_section("common");
-    ini.erase_section();
-    ini.set("token", token);
+    ini.set_current_section("common");
     ini.set("username", username);
 
     ini.set_current_section(path);
