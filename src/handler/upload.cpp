@@ -57,21 +57,20 @@ int uploadGist(std::string name, std::string path, std::string content, bool wri
         return -1;
     }
 
-    username = ini.get("username");
-
     if (ini.enter_section(path) != 0) 
     {
         id = "";  // If the section doesn't exist, id is empty
-    } else 
+    } 
+    else 
     {
         id = ini.get("id");
     }
-
+    username = ini.get("username");
     if (!path.size()) 
     {
         path = name; // Use name as the default value
     }
-   
+
     if(!id.size())
     {
         //std::cerr<<"No gist id is provided. Creating new gist...\n";
